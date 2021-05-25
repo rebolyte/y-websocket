@@ -26,6 +26,8 @@ const messageQueryAwareness = 3
 const messageAwareness = 1
 const messageAuth = 2
 
+const messageYjsSyncStep3 = 3;
+
 const reconnectTimeoutBase = 1200
 const maxReconnectTimeout = 2500
 // @todo - this should depend on awareness.outdatedTime
@@ -53,6 +55,8 @@ const readMessage = (provider, buf, emitSynced) => {
       const syncMessageType = syncProtocol.readSyncMessage(decoder, encoder, provider.doc, provider)
       if (emitSynced && syncMessageType === syncProtocol.messageYjsSyncStep2 && !provider.synced) {
         provider.synced = true
+      } else if (syncMessageType === messageYjsSyncStep3) {
+        provider.done = true;
       }
       break
     }
@@ -84,6 +88,7 @@ const setupWS = provider => {
     provider.wsconnecting = true
     provider.wsconnected = false
     provider.synced = false
+    provider.done = false;
 
     websocket.onmessage = event => {
       provider.wsLastMessageReceived = time.getUnixTime()
@@ -98,6 +103,7 @@ const setupWS = provider => {
       if (provider.wsconnected) {
         provider.wsconnected = false
         provider.synced = false
+        provider.done = false;
         // update awareness (all users except local left)
         awarenessProtocol.removeAwarenessStates(provider.awareness, Array.from(provider.awareness.getStates().keys()).filter(client => client !== provider.doc.clientID), provider)
         provider.emit('status', [{
@@ -223,6 +229,7 @@ export class WebsocketProvider extends Observable {
      * @type {boolean}
      */
     this._synced = false
+    this._done = false;
     /**
      * @type {WebSocket?}
      */
@@ -315,6 +322,17 @@ export class WebsocketProvider extends Observable {
       this.emit('synced', [state])
       this.emit('sync', [state])
     }
+  }
+
+  get done () {
+    return this._done
+  }
+
+  set done(state) {
+    if (this._done !== state) {
+      this._done = state
+      this.emit('done', [state])
+    } 
   }
 
   destroy () {
